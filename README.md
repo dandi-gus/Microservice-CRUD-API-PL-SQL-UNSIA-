@@ -1,5 +1,10 @@
 Aplikasi Microservice CRUD dengan PostgreSQL dan Enkripsi AES
 
+
+from flask import Flask, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from cryptography.fernet import Fernet
+
 a. Fungsi CRUD untuk Login dan Manajemen Akses User:
    - Create (Buat): Implementasikan fitur pembuatan pengguna baru dengan data yang dapat diakses melalui endpoint tertentu.
    - Read (Baca): Desain operasi pembacaan data pengguna dan manajemen akses melalui endpoint yang sesuai.
