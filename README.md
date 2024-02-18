@@ -203,3 +203,91 @@ Berikut penjelasannya :
 - ```app.run(debug=True)``` yaitu jika kondisinya benar/true, maka app.run() akan dijalankan dimana ini memulai server pengembangan Flask. *‘debug=True’* digunakan untuk menghidupkan mode debug yang akan memberikan informasi debug tambahan jika terjadi kesalahan.
 
 Script tersebut digunakan untuk memberikan instruksi ke Python tentang bagaimana script ini seharusnya berperilaku ketika dijalankan yang dapat membuat aplikasi web berbasis Flask dapat dijalankan secara mandiri.
+
+## Trigger Log
+#### 1. Membuat Tabel *trigger_log_user*
+```sql
+CREATE TABLE IF NOT EXISTS trigger_log_user (
+   log_id serial PRIMARY KEY,
+   users_id VARCHAR(255),
+   changed_field VARCHAR(255),
+   old_value VARCHAR(255),
+   new_value VARCHAR(255),
+   log_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+Ini adalah perintah SQL untuk membuat tabel *trigger_log_user* di dalam database. Tabel ini akan digunakan untuk mencatat perubahan yang terjadi pada data pengguna (users) dalam tabel lain.
+
+- ```log_id serial``` yang bertindak sebagai primary key.
+
+- ```users_id``` untuk menyimpan ID pengguna yang terkait dengan perubahan.
+
+-	 ```changed_field``` untuk menyimpan nama kolom yang berubah.
+
+- ```old_value``` untuk menyimpan nilai lama dari kolom yang berubah.
+
+- ```new_value``` untuk menyimpan nilai baru dari kolom yang berubah.
+
+- ```log_date``` untuk menyimpan tanggal dan waktu perubahan, dengan default nilai saat ini.
+
+#### 2. Membuat Fungsi *log_users_changes* untuk Digunakan oleh Trigger:
+```sql
+CREATE OR REPLACE FUNCTION log_users_changes()
+RETURNS TRIGGER AS $$
+BEGIN
+   IF TG_OP = 'UPDATE' THEN
+       IF NEW.password IS DISTINCT FROM OLD.password THEN
+           INSERT INTO trigger_log_user(users_id, changed_field, old_value, new_value)
+           VALUES(NEW.id::text, 'password', OLD.password, NEW.password);
+       END IF;
+
+       IF NEW.username IS DISTINCT FROM OLD.username THEN
+           INSERT INTO trigger_log_user(users_id, changed_field, old_value, new_value)
+           VALUES(NEW.id::text, 'username', OLD.username, NEW.username);
+       END IF;
+
+       IF NEW.id IS DISTINCT FROM OLD.id THEN
+           INSERT INTO trigger_log_user(users_id, changed_field, old_value, new_value)
+           VALUES(OLD.id::text, 'id', OLD.id::text, NEW.id::text);
+       END IF;
+   ELSIF TG_OP = 'INSERT' THEN
+       INSERT INTO trigger_log_user(users_id, changed_field, old_value, new_value)
+       VALUES(NEW.id::text, 'username', '', NEW.username),
+              (NEW.id::text, 'password', '', NEW.password),
+              (NEW.id::text, 'id', '', NEW.id::text);
+   ELSIF TG_OP = 'DELETE' THEN
+       INSERT INTO trigger_log_user(users_id, changed_field, old_value, new_value)
+       VALUES(OLD.id::text, 'username', OLD.username, ''),
+              (OLD.id::text, 'password', OLD.password, ''),
+              (OLD.id::text, 'id', OLD.id::text, '');
+   END IF;
+
+   RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+Ini adalah definisi fungsi *log_users_changes()* yang akan digunakan sebagai trigger pada tabel *users*. Fungsi ini akan dieksekusi setiap kali terjadi operasi INSERT, UPDATE, atau DELETE pada tabel *users*. Dalam fungsi ini, setiap perubahan yang terjadi pada kolom password, username, atau id akan dicatat ke dalam tabel *trigger_log_user*, bersama dengan nilai lama dan nilai baru dari kolom yang berubah. Fungsi ini ditulis dalam bahasa PL/pgSQL.
+
+
+#### 3. Membuat Trigger users_trigger
+```sql
+CREATE TRIGGER users_trigger
+AFTER UPDATE ON users
+FOR EACH ROW
+EXECUTE FUNCTION log_users_changes();
+```
+Ini adalah perintah SQL untuk membuat trigger *users_trigger* yang akan dipicu setelah terjadi perubahan pada tabel *users*. Setiap kali terjadi perubahan pada tabel *users*, trigger ini akan menjalankan fungsi *log_users_changes()*, yang akan mencatat perubahan ke dalam tabel *trigger_log_user*.
+
+## Test
+- Data Awal:
+
+![data awal](https://github.com/daraxnailah/uts-pemrograman-PL.SQL/assets/125743006/567352ea-6898-4151-9858-2e40e5731672)
+
+- Log Trigger for changes username & password:
+
+![Log Trigger for changes username   password](https://github.com/daraxnailah/uts-pemrograman-PL.SQL/assets/125743006/55192716-9d27-4ebd-93fe-37fcad97966d)
+
+- Data Akhir:
+
+![Data Akhir](https://github.com/daraxnailah/uts-pemrograman-PL.SQL/assets/125743006/cf6039bd-95cc-4f54-b64d-50a13a535fd1)
